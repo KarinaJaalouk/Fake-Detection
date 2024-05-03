@@ -70,7 +70,7 @@ def predict_image(model, image_path, image_size):
     else:
         return "Real"
 
-# Load and preprocess the dataset
+
 data_dir = "test"
 image_size = (128, 128)
 images, labels = load_dataset(data_dir, image_size)
