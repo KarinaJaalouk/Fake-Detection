@@ -92,7 +92,7 @@ history = train_model(model, train_images, train_labels, val_images, val_labels,
 loss, accuracy = evaluate_model(model, test_images, test_labels)
 print("Test Accuracy:", accuracy)
 
-# Пример вызова функции predict_image
-image_path = "C:/code projects/Fake Detection/test/fake/4OFJLSG5P9.jpg"
+data_dir = "test"
+image_path = "test/fake/ZW468TZZF2.jpg"
 prediction = predict_image(model, image_path, image_size)
 print("Prediction:", prediction)
