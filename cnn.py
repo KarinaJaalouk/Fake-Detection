@@ -71,7 +71,7 @@ def predict_image(model, image_path, image_size):
         return "Real"
 
 
-data_dir = "test"
+data_dir = "data"
 image_size = (128, 128)
 images, labels = load_dataset(data_dir, image_size)
 
@@ -86,13 +86,29 @@ model = create_model(input_shape=train_images[0].shape)
 model = compile_model(model)
 
 # Train the model
-history = train_model(model, train_images, train_labels, val_images, val_labels, epochs=10, batch_size=32)
+history = train_model(model, train_images, train_labels, val_images, val_labels, epochs=100, batch_size=32)
 
 # Evaluate the model
 loss, accuracy = evaluate_model(model, test_images, test_labels)
 print("Test Accuracy:", accuracy)
 
-data_dir = "test"
-image_path = "test/fake/ZW468TZZF2.jpg"
+data_dir = "data"
+image_path = "data/fake/ZW468TZZF2.jpg"
 prediction = predict_image(model, image_path, image_size)
 print("Prediction:", prediction)
+image_path = "data/real/07561.jpg"
+prediction = predict_image(model, image_path, image_size)
+print("Prediction:", prediction)
+image_path = "data/real/07680.jpg"
+prediction = predict_image(model, image_path, image_size)
+print("Prediction:", prediction)
+
+# TERMINAL OUTPUT 100 EPOCH
+# Test Accuracy: 0.8063562512397766
+# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 147ms/step
+# Prediction: Real
+# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 34ms/step
+# Prediction: Fake
+# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 33ms/step
+# Prediction: Real
+# PS C:\code projects\Fake Detection> 
