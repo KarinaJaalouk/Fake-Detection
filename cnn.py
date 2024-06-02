@@ -1,114 +1,173 @@
 import os
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from tensorflow.keras import layers, models
+import datetime
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.utils import plot_model
 from PIL import Image
+import matplotlib.pyplot as plt
+import pydotplus
+import pydot
 
-# Function to load and preprocess the dataset
-def load_dataset(data_dir, image_size):
-    images = []
-    labels = []
-    
-    label_encoder = LabelEncoder()
-    
-    for label in os.listdir(data_dir):
-        label_dir = os.path.join(data_dir, label)
-        for image_file in os.listdir(label_dir):
-            image_path = os.path.join(label_dir, image_file)
-            image = Image.open(image_path).convert("RGB")
-            image = image.resize(image_size)
-            image = np.array(image) / 255.0  # Normalize pixel values
-            images.append(image)
-            labels.append(label)
-    
-    labels = label_encoder.fit_transform(labels)  # Convert labels to numerical values
-    return np.array(images), np.array(labels)
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
-# Define model architecture
-def create_model(input_shape):
-    model = models.Sequential([
-        layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
-        layers.MaxPooling2D((2, 2)),
-        layers.Conv2D(64, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Conv2D(128, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Conv2D(128, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Flatten(),
-        layers.Dropout(0.5),
-        layers.Dense(512, activation='relu'),
-        layers.Dense(1, activation='sigmoid')  # Output layer, binary classification
-    ])
-    return model
+base_dir = "C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake"
+train_dir = os.path.join(base_dir, 'train')
+test_dir = os.path.join(base_dir, 'test')
+valid_dir = os.path.join(base_dir, 'valid')
 
-# Compile the model
-def compile_model(model):
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    return model
+# Проверяем, существуют ли директории
+if os.path.exists(train_dir) and os.path.exists(test_dir) and os.path.exists(valid_dir):
+    print("Все директории существуют.")
+else:
+    print("Одна или несколько директорий не существуют.")
+    if not os.path.exists(train_dir):
+        print(f"Папка {train_dir} не существует.")
+    if not os.path.exists(test_dir):
+        print(f"Папка {test_dir} не существует.")
+    if not os.path.exists(valid_dir):
+        print(f"Папка {valid_dir} не существует.")
 
-# Train the model
-def train_model(model, train_images, train_labels, val_images, val_labels, epochs, batch_size):
-    history = model.fit(train_images, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_images, val_labels))
-    return history
+train_datagen = ImageDataGenerator(rescale=1.0/255.0)
+test_datagen = ImageDataGenerator(rescale=1.0/255.0)
+valid_datagen = ImageDataGenerator(rescale=1.0/255.0)
 
-# Evaluate the model
-def evaluate_model(model, test_images, test_labels):
-    loss, accuracy = model.evaluate(test_images, test_labels)
-    return loss, accuracy
+train_generator = train_datagen.flow_from_directory(
+    train_dir, batch_size=100, class_mode='binary', target_size=(150, 150))
+validation_generator = valid_datagen.flow_from_directory(
+    valid_dir, batch_size=100, class_mode='binary', target_size=(150, 150))
+test_generator = test_datagen.flow_from_directory(
+    test_dir, batch_size=100, class_mode='binary', target_size=(150, 150))
 
-# Perform inference
-def predict_image(model, image_path, image_size):
-    image = Image.open(image_path).convert("RGB")
-    image = image.resize(image_size)
-    image = np.array(image) / 255.0  # Normalize pixel values
-    image = np.expand_dims(image, axis=0)  # Add batch dimension
-    prediction = model.predict(image)
-    if prediction > 0.5:
-        return "Fake"
-    else:
-        return "Real"
+# Визуализация первых 9 изображений из генератора данных
+plt.figure(figsize=(10, 10))
+for i in range(9):
+    img, label = next(train_generator)
+    ax = plt.subplot(3, 3, i + 1)
+    plt.imshow(img[0])
+    plt.title("Fake" if label[0] == 0.0 else "Real")
+    plt.axis("off")
+plt.show()
 
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(150, 150, 3)),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(1064, activation='relu'),
+    tf.keras.layers.Dense(2, activation='softmax')
+])
 
-data_dir = "data"
-image_size = (128, 128)
-images, labels = load_dataset(data_dir, image_size)
+tf.keras.utils.pydot = pydot
 
-# Split the dataset into training, validation, and test sets
-train_images, test_images, train_labels, test_labels = train_test_split(images, labels, test_size=0.2, random_state=42)
-train_images, val_images, train_labels, val_labels = train_test_split(train_images, train_labels, test_size=0.1, random_state=42)
+model.summary()
 
-# Define model architecture
-model = create_model(input_shape=train_images[0].shape)
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(train_generator, validation_data=validation_generator, epochs=10, validation_steps=50, verbose=1)
 
-# Compile the model
-model = compile_model(model)
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model Accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Val'], loc='upper right')
+plt.show()
 
-# Train the model
-history = train_model(model, train_images, train_labels, val_images, val_labels, epochs=100, batch_size=32)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model Loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Val'], loc='upper right')
+plt.show()
 
-# Evaluate the model
-loss, accuracy = evaluate_model(model, test_images, test_labels)
-print("Test Accuracy:", accuracy)
+test_loss, test_acc = model.evaluate(test_generator)
+print(f'Test accuracy: {test_acc}')
 
-data_dir = "data"
-image_path = "data/fake/ZW468TZZF2.jpg"
-prediction = predict_image(model, image_path, image_size)
-print("Prediction:", prediction)
-image_path = "data/real/07561.jpg"
-prediction = predict_image(model, image_path, image_size)
-print("Prediction:", prediction)
-image_path = "data/real/07680.jpg"
-prediction = predict_image(model, image_path, image_size)
-print("Prediction:", prediction)
+class_names = ['fake', 'real']
 
-# TERMINAL OUTPUT 100 EPOCH
-# Test Accuracy: 0.8063562512397766
-# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 147ms/step
-# Prediction: Real
-# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 34ms/step
-# Prediction: Fake
-# 1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 33ms/step
-# Prediction: Real
-# PS C:\code projects\Fake Detection> 
+import numpy as np
+from tensorflow.keras.preprocessing import image
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/fake/0C28G3DC1O.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/fake/00F8LKY6JC.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/real/00001.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/fake/00MZYXAT77.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/real/00001.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+# Замена пути на ваш тестовый файл изображения
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/real/00099.jpg'
+test_image = image.load_img(test_image_path, target_size=(150, 150))
+test_image = image.img_to_array(test_image)
+test_image = np.expand_dims(test_image, axis=0)
+result = model.predict(test_image)
+
+print(result)
+print(
+    "This image is {} with a {:.2f}% confidence."
+    .format(class_names[np.argmax(result)], 100 * np.max(result))
+)
+
+model.save("C:/Users/Lenovo/Desktop/archive/real_vs_fake/save_model/model.h5")
+model.save('my_model.keras')
