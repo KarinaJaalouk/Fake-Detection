@@ -125,6 +125,7 @@ class ImageGameApp:
 
     def load_new_round(self):
         self.current_round += 1
+        
         real_image_path, fake_image_path = self.choose_random_images()
         self.real_image, self.real_image_path = self.load_image(real_image_path)
         self.fake_image, self.fake_image_path = self.load_image(fake_image_path)
