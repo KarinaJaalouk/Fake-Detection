@@ -92,7 +92,7 @@ import numpy as np
 from tensorflow.keras.preprocessing import image
 
 # Замена пути на ваш тестовый файл изображения
-test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/fake/0C28G3DC1O.jpg'
+test_image_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test/real/00016.jpg'
 test_image = image.load_img(test_image_path, target_size=(150, 150))
 test_image = image.img_to_array(test_image)
 test_image = np.expand_dims(test_image, axis=0)
