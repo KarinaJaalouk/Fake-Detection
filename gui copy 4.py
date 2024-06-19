@@ -5,14 +5,15 @@ import os
 import random
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
-import tensorflow as tf
 import numpy as np
 
 class ImageGameApp:
-    def __init__(self, root, image_folder):
+    def __init__(self, root, image_folder, model_path):
         self.root = root
         self.root.title("Real vs Fake Images")
         self.image_folder = image_folder
+        self.model = load_model(model_path)
+        self.class_names = ['fake', 'real']
 
         self.frame1 = Frame(self.root, padx=10, pady=10)
         self.frame1.grid(row=0, column=0, padx=10, pady=10)
@@ -21,12 +22,12 @@ class ImageGameApp:
         self.frame2.grid(row=0, column=1, padx=10, pady=10)
 
         self.current_round = 1
-        self.score = 0
+        self.player_score = 0
+        self.ai_score = 0
         self.image1_path = ""
         self.image2_path = ""
 
         self.load_initial_images()
-
         self.create_widgets()
 
     def load_image(self, path, size=(150, 150)):
@@ -37,14 +38,14 @@ class ImageGameApp:
     def choose_random_images(self):
         real_images = os.listdir(os.path.join(self.image_folder, 'real'))
         fake_images = os.listdir(os.path.join(self.image_folder, 'fake'))
-        
+
         real_image = random.choice(real_images)
         fake_image = random.choice(fake_images)
-        
+
         return os.path.join(self.image_folder, 'real', real_image), os.path.join(self.image_folder, 'fake', fake_image)
 
     def update_score_label(self):
-        self.score_label.config(text=f"Score: {self.score}/10")
+        self.score_label.config(text=f"Player Score: {self.player_score}/10 | AI Score: {self.ai_score}/10")
 
     def load_initial_images(self):
         real_image_path, fake_image_path = self.choose_random_images()
@@ -55,43 +56,54 @@ class ImageGameApp:
         self.image2_path = self.fake_image_path
 
     def button_action_is_real_picture1(self):
-        print(self.image1_path)
-        if 'test\\real' in self.image1_path:  # Используем 'test\\real' вместо r'test\real'
-            print("Correct: Real image button1")
-            self.score += 1
+        print(f"Image 1 Path: {self.image1_path}")
+        if self.image1_path == self.real_image_path:
+            self.player_score += 1
+            print("This is real button 1")
         else:
-            print("Incorrect: Fake image button1")
-        
+            print("This is not real button 1")
         self.update_score_label()
-        print(f"Round {self.current_round} Score: {self.score}/10")
-        
-        if self.current_round < 10:
-            self.load_new_round()
-        else:
-            self.display_final_score()
+        self.check_game_status()
 
     def button_action_is_real_picture2(self):
-        print(self.image2_path)
-        if 'test\\real' in self.image2_path:  # Используем 'test\\real' вместо r'test\real'
-            print("Correct: Real image button2")
-            self.score += 1
+        print(f"Image 2 Path: {self.image2_path}")
+        if self.image2_path == self.real_image_path:
+            self.player_score += 1
+            print("This is real button 2")
         else:
-            print("Incorrect: Fake image button2")
-        
+            print("This is not real button 2")
         self.update_score_label()
-        print(f"Round {self.current_round} Score: {self.score}/10")
-        
-        if self.current_round < 10:
-            self.load_new_round()
-        else:
-            self.display_final_score()
+        self.check_game_status()
+
+    def make_prediction(self, img_path):
+        test_image = image.load_img(img_path, target_size=(150, 150))
+        test_image = image.img_to_array(test_image)
+        test_image = np.expand_dims(test_image, axis=0)
+        test_image /= 255.0
+
+        result = self.model.predict(test_image)
+        predicted_class = np.argmax(result, axis=1)
+        return self.class_names[predicted_class[0]]
 
     def load_new_round(self):
         self.current_round += 1
         real_image_path, fake_image_path = self.choose_random_images()
         self.real_image, self.real_image_path = self.load_image(real_image_path)
         self.fake_image, self.fake_image_path = self.load_image(fake_image_path)
-        
+
+        # Predict both images
+        prediction1 = self.make_prediction(self.real_image_path)
+        prediction2 = self.make_prediction(self.fake_image_path)
+        print("__________________________________________________________________________")
+        print(f"Image 1 Path: {self.real_image_path}, Predicted Class: {prediction1}")
+        print(f"Image 2 Path: {self.fake_image_path}, Predicted Class: {prediction2}")
+
+        # Update AI score
+        if prediction1 == 'real':
+            self.ai_score += 1
+        if prediction2 == 'real':
+            self.ai_score += 1
+
         if random.choice([True, False]):
             self.image1_label.config(image=self.real_image)
             self.image2_label.config(image=self.fake_image)
@@ -102,23 +114,23 @@ class ImageGameApp:
             self.image2_label.config(image=self.real_image)
             self.image1_path = self.fake_image_path
             self.image2_path = self.real_image_path
-        
+
         self.round_label.config(text=f"Round {self.current_round}")
         self.update_score_label()
 
-        # Check if it's the last round
-        if self.current_round > 10:
+    def check_game_status(self):
+        if self.current_round < 10:
+            self.load_new_round()
+        else:
             self.display_final_score()
 
     def display_final_score(self):
-        # Hide unnecessary widgets
         self.frame1.grid_remove()
         self.frame2.grid_remove()
         self.round_label.grid_remove()
         self.score_label.grid_remove()
 
-        # Display final score
-        final_score_label = tk.Label(self.root, text=f"Game Over. Final Score: {self.score}", font=("Helvetica", 20))
+        final_score_label = tk.Label(self.root, text=f"Game Over. Player Score: {self.player_score}, AI Score: {self.ai_score}", font=("Helvetica", 20))
         final_score_label.grid(row=0, column=0, padx=100, pady=100)
 
     def create_widgets(self):
@@ -135,34 +147,13 @@ class ImageGameApp:
         self.round_label = tk.Label(self.root, text=f"Round {self.current_round}", font=("Helvetica", 16))
         self.round_label.grid(row=1, column=0, columnspan=2)
 
-        self.score_label = tk.Label(self.root, text=f"Score: {self.score}/10", font=("Helvetica", 16))
+        self.score_label = tk.Label(self.root, text=f"Player Score: {self.player_score}/10 | AI Score: {self.ai_score}/10", font=("Helvetica", 16))
         self.score_label.grid(row=2, column=0, columnspan=2)
 
 if __name__ == "__main__":
-    # Path to the folder containing images
     image_folder = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/real-vs-fake/test'
+    model_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/save_model/model.h5'
 
-    model_path = 'C:/Users/Lenovo/Desktop/archive/real_vs_fake/save_model/model.h5' 
-    model = load_model(model_path)
-
-    def make_prediction(img_path, model):
-        test_image = image.load_img(img_path, target_size=(150, 150))
-        test_image = image.img_to_array(test_image)
-        test_image = np.expand_dims(test_image, axis=0)
-        test_image /= 255.0  # Normalizing Images
-        
-        result = model.predict(test_image)
-        
-        predicted_class = np.argmax(result, axis=1)
-        return predicted_class, result
-
-    class_names = ['fake', 'real']
-    img_path = '1.jpg'
-
-    predicted_class, prediction = make_prediction(img_path, model)
-    predicted_label = class_names[predicted_class[0]]
-
-    print(f"Predicted Class: {predicted_label}")
     root = tk.Tk()
-    app = ImageGameApp(root, image_folder)
+    app = ImageGameApp(root, image_folder, model_path)
     root.mainloop()
